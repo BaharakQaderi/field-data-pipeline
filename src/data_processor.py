@@ -36,6 +36,25 @@ class DataProcessor:
         # Make a copy to avoid modifying the original
         corrected_df = df.copy()
         
+        # Define force component columns
+        force_components = ['Backline_Left_kg', 'Backline_Right_kg', '5th_line_kg', 'Frontline_kg']
+        
+        # Apply absolute value to all force components (to match InfluxDB calculation)
+        abs_corrections = 0
+        for component in force_components:
+            if component in corrected_df.columns:
+                mask = corrected_df[component].notna()
+                component_count = mask.sum()
+                
+                if component_count > 0:
+                    # Apply absolute value to make all forces positive
+                    corrected_df.loc[mask, component] = corrected_df.loc[mask, component].abs()
+                    abs_corrections += component_count
+                    logger.info(f"Applied abs() to {component}: {component_count:,} records")
+        
+        if abs_corrections > 0:
+            logger.info(f"Total absolute value corrections: {abs_corrections:,} values")
+        
         # Apply 5th_line_kg correction (divide by 2 due to hardware setup)
         if '5th_line_kg' in corrected_df.columns:
             # Only apply correction where data exists (not NaN)
@@ -44,7 +63,7 @@ class DataProcessor:
             
             if original_count > 0:
                 corrected_df.loc[mask, '5th_line_kg'] = corrected_df.loc[mask, '5th_line_kg'] / 2
-                logger.info(f"Applied 5th_line_kg correction to {original_count:,} records (divided by 2)")
+                logger.info(f"Applied 5th_line_kg correction to {original_count:,} records (divided by 2 after abs)")
             else:
                 logger.warning("No 5th_line_kg data found to correct")
         else:
@@ -141,7 +160,8 @@ class DataProcessor:
             if mask.any():
                 original_values = original_df.loc[mask, '5th_line_kg']
                 processed_values = processed_df.loc[mask, '5th_line_kg']
-                expected_values = original_values / 2
+                # Expected values: apply abs() first, then divide by 2
+                expected_values = original_values.abs() / 2
                 
                 # Check if processed values match expected (within small tolerance for floating point)
                 differences = abs(processed_values - expected_values)
@@ -151,6 +171,23 @@ class DataProcessor:
                     logger.info(f"✅ 5th_line_kg correction validated successfully")
                     logger.info(f"   Corrected {len(original_values):,} records")
                     logger.info(f"   Max difference: {max_diff:.2e}")
+                    
+                    # Additional validation: check that all force values are positive
+                    force_components = ['Backline_Left_kg', 'Backline_Right_kg', '5th_line_kg', 'Frontline_kg']
+                    negative_counts = {}
+                    
+                    for component in force_components:
+                        if component in processed_df.columns:
+                            component_data = processed_df[component].dropna()
+                            negative_count = (component_data < 0).sum()
+                            negative_counts[component] = negative_count
+                            
+                    total_negatives = sum(negative_counts.values())
+                    if total_negatives == 0:
+                        logger.info(f"✅ All force components are positive (abs correction validated)")
+                    else:
+                        logger.warning(f"⚠️  Found {total_negatives} negative values across components: {negative_counts}")
+                    
                     return True
                 else:
                     logger.error(f"❌ 5th_line_kg correction validation failed. Max difference: {max_diff}")
