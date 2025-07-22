@@ -28,6 +28,8 @@ def main():
                        help='Process specific date (YYYY-MM-DD)')
     parser.add_argument('--notebook', action='store_true',
                        help='Start Jupyter notebook for interactive analysis')
+    parser.add_argument('--dashboard', action='store_true',
+                       help='Start interactive Streamlit dashboard')
     
     args = parser.parse_args()
     
@@ -53,6 +55,11 @@ def main():
         print("📓 Starting Jupyter notebook...")
         subprocess.run(["uv", "run", "jupyter", "notebook"])
         
+    elif args.dashboard:
+        import subprocess
+        print("🚀 Starting interactive dashboard...")
+        subprocess.run(["uv", "run", "streamlit", "run", "src/interactive_dashboard.py"])
+        
     else:
         print("🔬 Field Data Pipeline")
         print("\nWelcome to your field data analysis pipeline!")
@@ -60,6 +67,7 @@ def main():
         print("  python main.py --merge           # Merge all data")
         print("  python main.py --merge --date YYYY-MM-DD  # Merge specific date")
         print("  python main.py --notebook        # Start Jupyter")
+        print("  python main.py --dashboard       # Start interactive dashboard")
         print("  uv run jupyter notebook          # Direct Jupyter start")
         print("\nOr run the data merger directly:")
         print("  uv run python src/data_merger.py")
