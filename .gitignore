@@ -14,6 +14,9 @@ data/INFLUX/
 data/IPOK/
 data/FORCES/
 data/*.csv
+
+# All CSV files (global pattern)
+*.csv
 data/*.xlsx
 data/*.json
 data/*.parquet
