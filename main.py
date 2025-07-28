@@ -30,6 +30,8 @@ def main():
                        help='Start Jupyter notebook for interactive analysis')
     parser.add_argument('--dashboard', action='store_true',
                        help='Start interactive Streamlit dashboard')
+    parser.add_argument('--segment-flights', action='store_true',
+                       help='Segment processed data into individual flights')
     
     args = parser.parse_args()
     
@@ -60,6 +62,21 @@ def main():
         print("🚀 Starting interactive dashboard...")
         subprocess.run(["uv", "run", "streamlit", "run", "src/interactive_dashboard.py"])
         
+    elif args.segment_flights:
+        from src.flight_segmenter import FlightSegmenter
+        print("🚁 Starting flight segmentation...")
+        segmenter = FlightSegmenter()
+        results = segmenter.process_all_flights()
+        
+        if results['status'] == 'TEMPLATE_CREATED':
+            print(f"📝 Template created: {results['template_path']}")
+            print("Please fill in your flight time ranges and run again.")
+        elif results['status'] == 'SUCCESS':
+            print(f"✅ Successfully segmented {results['flights_with_data']} flights")
+            print(f"   Total records processed: {results['total_records_segmented']:,}")
+        else:
+            print(f"❌ Error: {results.get('status', 'Unknown error')}")
+        
     else:
         print("🔬 Field Data Pipeline")
         print("\nWelcome to your field data analysis pipeline!")
@@ -68,6 +85,7 @@ def main():
         print("  python main.py --merge --date YYYY-MM-DD  # Merge specific date")
         print("  python main.py --notebook        # Start Jupyter")
         print("  python main.py --dashboard       # Start interactive dashboard")
+        print("  python main.py --segment-flights # Segment data by individual flights")
         print("  uv run jupyter notebook          # Direct Jupyter start")
         print("\nOr run the data merger directly:")
         print("  uv run python src/data_merger.py")
