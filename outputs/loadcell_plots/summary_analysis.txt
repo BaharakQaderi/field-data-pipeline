@@ -1,0 +1,93 @@
+LOAD CELL DATA SUMMARY ANALYSIS
+==================================================
+
+FILES BY DURATION (longest first):
+------------------------------
+loadcell_readings_20250726_231046.csv        85.8 min
+loadcell_readings_20250726_195100.csv        80.5 min
+loadcell_readings_20250726_215642.csv        36.6 min
+loadcell_readings_20250726_224122.csv        24.2 min
+loadcell_readings_20250726_211146.csv        16.9 min
+loadcell_readings_20250723_165647.csv        15.6 min
+loadcell_readings_20250726_214329.csv        12.9 min
+loadcell_readings_20250726_163113.csv        11.9 min
+loadcell_readings_20250726_181615.csv        11.3 min
+loadcell_readings_20250726_212901.csv        10.4 min
+
+FILES BY ACTIVITY (highest range first):
+------------------------------
+loadcell_readings_20250726_195100.csv    262.7645 kg range
+loadcell_readings_20250726_212901.csv    233.7293 kg range
+loadcell_readings_20250726_231046.csv    195.7593 kg range
+loadcell_readings_20250726_223307.csv    164.4191 kg range
+loadcell_readings_20250726_224122.csv     88.6920 kg range
+loadcell_readings_20250726_184504.csv     87.0766 kg range
+loadcell_readings_20250726_183136.csv     85.2001 kg range
+loadcell_readings_20250726_215642.csv     69.2498 kg range
+loadcell_readings_20250726_213912.csv     45.1914 kg range
+loadcell_readings_20250726_211146.csv     16.1855 kg range
+
+POTENTIAL SENSOR ISSUES:
+------------------------------
+loadcell_readings_20250723_165125.csv    LC1: High noise, LC2: High noise
+loadcell_readings_20250723_165647.csv    LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250723_171154.csv    LC1: High bias
+loadcell_readings_20250723_171757.csv    LC1: High noise, LC2: High noise, LC1: High bias
+loadcell_readings_20250726_153836.csv    LC1: High bias
+loadcell_readings_20250726_155139.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_155320.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_155625.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_155716.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_160026.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_160104.csv    LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_160734.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_161244.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_161526.csv    LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_163113.csv    LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_164323.csv    LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_180557.csv    LC1: High noise, LC2: High noise, LC1: High bias
+loadcell_readings_20250726_181408.csv    LC1: High noise, LC1: High bias
+loadcell_readings_20250726_181615.csv    LC1: High noise, LC2: High noise, LC1: High bias
+loadcell_readings_20250726_182727.csv    LC1: High noise, LC1: High bias
+loadcell_readings_20250726_183136.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_183445.csv    LC1: High noise, LC1: High bias
+loadcell_readings_20250726_184504.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_195100.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_211146.csv    LC1: High noise, LC2: High noise, LC1: High bias
+loadcell_readings_20250726_212901.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_213912.csv    LC1: High noise, LC2: High noise, LC2: High bias
+loadcell_readings_20250726_214329.csv    LC1: High noise, LC2: High noise, LC2: High bias
+loadcell_readings_20250726_215642.csv    LC1: High noise, LC2: High noise, LC1: High bias
+loadcell_readings_20250726_223307.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+loadcell_readings_20250726_224122.csv    LC1: Very low range, LC2: High noise, LC2: High bias
+loadcell_readings_20250726_230538.csv    LC1: Very low range, LC2: High noise
+loadcell_readings_20250726_231046.csv    LC1: High noise, LC2: High noise, LC1: High bias, LC2: High bias
+
+OVERALL STATISTICS:
+------------------------------
+Total files processed: 38
+Total duration: 410.7 minutes
+Total readings: 234,638
+
+MOST ACTIVE FILES (likely important):
+------------------------------
+loadcell_readings_20250726_195100.csv
+  Duration: 80.5 min, Max range: 262.7645 kg
+  Max total force: 191.0000 kg
+
+loadcell_readings_20250726_212901.csv
+  Duration: 10.4 min, Max range: 233.7293 kg
+  Max total force: 413.0000 kg
+
+loadcell_readings_20250726_231046.csv
+  Duration: 85.8 min, Max range: 195.7593 kg
+  Max total force: 235.0000 kg
+
+loadcell_readings_20250726_223307.csv
+  Duration: 8.1 min, Max range: 164.4191 kg
+  Max total force: 180.0000 kg
+
+loadcell_readings_20250726_224122.csv
+  Duration: 24.2 min, Max range: 88.6920 kg
+  Max total force: 45.0000 kg
+
