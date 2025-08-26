@@ -119,33 +119,33 @@ def create_flight_visualizations(folder_name, flight_data, start_time, end_time)
     
     # Force distributions
     ax1 = axes[0, 0]
-    ax1.hist(flight_data['total_force'], bins=50, alpha=0.7, color='red', edgecolor='black')
+    ax1.hist(flight_data['total_force'], bins=50, alpha=0.7, color='red', edgecolor='black', density=True, weights=np.ones(len(flight_data['total_force'])) / len(flight_data['total_force']) * 100)
     ax1.axvline(flight_data['total_force'].mean(), color='orange', linestyle='--', linewidth=2, label=f'Mean: {flight_data["total_force"].mean():.2f}')
     ax1.axvline(flight_data['total_force'].max(), color='darkred', linestyle='-', linewidth=2, label=f'Max: {flight_data["total_force"].max():.2f}')
     ax1.set_title('Total Force Distribution')
     ax1.set_xlabel('Force (kg)')
-    ax1.set_ylabel('Frequency')
+    ax1.set_ylabel('Probability (%)')
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     
     # Back force components
     ax2 = axes[0, 1]
-    ax2.hist(flight_data['Backline_Left_kg'], bins=30, alpha=0.6, label='Left', color='blue')
-    ax2.hist(flight_data['Backline_Right_kg'], bins=30, alpha=0.6, label='Right', color='green')
+    ax2.hist(flight_data['Backline_Left_kg'], bins=30, alpha=0.6, label='Left', color='blue', density=True, weights=np.ones(len(flight_data['Backline_Left_kg'])) / len(flight_data['Backline_Left_kg']) * 100)
+    ax2.hist(flight_data['Backline_Right_kg'], bins=30, alpha=0.6, label='Right', color='green', density=True, weights=np.ones(len(flight_data['Backline_Right_kg'])) / len(flight_data['Backline_Right_kg']) * 100)
     ax2.set_title('Backline Force Distribution')
     ax2.set_xlabel('Force (kg)')
-    ax2.set_ylabel('Frequency')
+    ax2.set_ylabel('Probability (%)')
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     
     # Force difference
     ax3 = axes[1, 0]
-    ax3.hist(flight_data['back_force_diff'], bins=30, alpha=0.7, color='purple')
+    ax3.hist(flight_data['back_force_diff'], bins=30, alpha=0.7, color='purple', density=True, weights=np.ones(len(flight_data['back_force_diff'])) / len(flight_data['back_force_diff']) * 100)
     ax3.axvline(flight_data['back_force_diff'].mean(), color='indigo', linestyle='--', linewidth=2, 
                 label=f'Mean: {flight_data["back_force_diff"].mean():.2f}')
     ax3.set_title('Back Force Difference |Left-Right|')
     ax3.set_xlabel('Force Difference (kg)')
-    ax3.set_ylabel('Frequency')
+    ax3.set_ylabel('Probability (%)')
     ax3.legend()
     ax3.grid(True, alpha=0.3)
     
@@ -155,12 +155,12 @@ def create_flight_visualizations(folder_name, flight_data, start_time, end_time)
     torque_right_clean = torque_right[torque_right != 0]
     
     if len(torque_left_clean) > 0:
-        ax4.hist(torque_left_clean, bins=20, alpha=0.6, label='Left Torque', color='orange')
+        ax4.hist(torque_left_clean, bins=20, alpha=0.6, label='Left Torque', color='orange', density=True, weights=np.ones(len(torque_left_clean)) / len(torque_left_clean) * 100)
     if len(torque_right_clean) > 0:
-        ax4.hist(torque_right_clean, bins=20, alpha=0.6, label='Right Torque', color='cyan')
+        ax4.hist(torque_right_clean, bins=20, alpha=0.6, label='Right Torque', color='cyan', density=True, weights=np.ones(len(torque_right_clean)) / len(torque_right_clean) * 100)
     ax4.set_title('Torque Distribution (Non-zero values)')
     ax4.set_xlabel('Torque')
-    ax4.set_ylabel('Frequency')
+    ax4.set_ylabel('Probability (%)')
     ax4.legend()
     ax4.grid(True, alpha=0.3)
     

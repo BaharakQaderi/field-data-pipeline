@@ -17,7 +17,7 @@ Nardo tests
 	Average difference back force (mean(abs(left - right)))
 	Max total back force (max(abs(left - right)))
 Vaie (remember 5th line is to be divided by 2)
-	Is the brake on?
+	Is the brake on? should be retrive from the GROUND_SEGMENT_brake_command
 	Average Total force
 	Max total force
 	Average back force (mean(mean left,mean right))
@@ -30,19 +30,19 @@ Vaie (remember 5th line is to be divided by 2)
 	Average torque diff mean(abs(torque_left - torque_right))
  
 TK10
-	Is the brake on?
+	Is the brake on? Fra said it was always off.
 	Average Total force from FS
 	Max total force from FS
-	Average Total force from GS
-	Max total force from GS	
+	Average Total force from GS: OPC_DsLoadCells.MeasureFloat_SUM
+	Max total force from GS: OPC_DsLoadCells.MeasureFloat_SUM
 	Average torque (left and right) mean(abs(torque_left),abs(torque_right)) from FS
 	Average torque diff mean(abs(torque_left - torque_right)) from FS
-	Average torque generator
-	Max torque generator
+	Average torque generator: OPC_DsInverters.Torque_ActualValue[2]
+	Max torque generator: OPC_DsInverters.Torque_ActualValue[2]
 	For all powers:
-		Average power consumed/generated
-		Max power generated
-		Max power consumed
+		Average power consumed/generated: OPC_CONV_MEAS_FB_LS_PWR_SCALED_CALC
+		Max power generated: OPC_CONV_MEAS_FB_LS_PWR_SCALED_CALC
+		Max power consumed: OPC_CONV_MEAS_FB_LS_PWR_SCALED_CALC
 	All powers are
 		Mechanical at the drum (Force*reeling speed)
 		Mechanical at the generator (Torque*rotational speed)
@@ -57,7 +57,7 @@ Important from IPOK:
 - Azimuth (processed)
 -----------------
 Vaie timing:
-16-07-2025:
+
 For now there is these file /Users/baharakqaderi/field-data-pipeline/outputs/processed_merged_flight_data_2025-07-16.csv
 These are the time range of the each flight that I want to created a folder for each with this pattern name: Date_hour, for example 2025_07_16_10_29 for the first flight, and then calculate these field values: 
 	Max total force
@@ -72,6 +72,7 @@ These are the time range of the each flight that I want to created a folder for 
 
 the naming of the fields is in the processed file is this: Backline_Left_kg,Backline_Right_kg,5th_line_kg,Frontline_kg, the total force would be the sum of these values. and the naming of the torque are: FLIGHT_SEGMENT_r_torque, FLIGHT_SEGMENT_l_torque if you have any question let me know, 
 
+16-07-2025:
 10:29:25-10:32:59
 10:58:01-11:02:16
 11:47:46-12:18:40
@@ -95,9 +96,18 @@ the naming of the fields is in the processed file is this: Backline_Left_kg,Back
 13:32:55-13:33:53
 13:35:45-13:38:03
 13:39:23-13:46:50
-------------------------- Done except the brake on, should we calculate it from the maintenance data?
+------------------------- Done except the brake on, should we calculate it from the ground segment data, brake_command=1, naming=GROUND_SEGMENT_brake_command
+TODO: add a column for this in each flight to see if it is on or not!
 
-These are the timing of Catanazro:
+what I have to also add for each flight is the value of this field: GROUND_SEGMENT_brake_command should be extracted for 16th: /Users/baharakqaderi/field-data-pipeline/data/INFLUX/GROUND_SEGMENT_data_2025-07-16.csv and the 17th: /Users/baharakqaderi/field-data-pipeline/data/INFLUX/GROUND_SEGMENT_data_2025-07-17.csv how can you do that? could be miss alignment in the _time I have no idea, let's analyze and see what we can do
+----------------------------Done perfectly!
+
+
+
+
+These are the timing of Catanazro 28 and 29:
+Here it is a bit different for the pipeline would be different path and different files, so the timing would be the t
+
 Flight_2: UTC 12:06:04->12:06:36 28/7/2025
 Flight_5: UTC 08:41:05->08:47:18 29/7/2025 
 Flight_6: UTC 09:11:09->09:18:14 29/7/2025 
