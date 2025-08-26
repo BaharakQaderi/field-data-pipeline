@@ -30,8 +30,8 @@ Vaie (remember 5th line is to be divided by 2)
 	Average torque diff mean(abs(torque_left - torque_right))
  
 TK10
-	Is the brake on? Fra said it was always off.
-	Average Total force from FS
+	Is the brake on? Fra said it was always off, or calulated from GROUND_SEGMENT_brake_command.
+	Average Total force from FS: 
 	Max total force from FS
 	Average Total force from GS: OPC_DsLoadCells.MeasureFloat_SUM
 	Max total force from GS: OPC_DsLoadCells.MeasureFloat_SUM
