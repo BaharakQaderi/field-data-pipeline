@@ -65,4 +65,5 @@ outputs/*.html
 *.log
 logs/
 flight_analysis_*/
+*.txt
 
