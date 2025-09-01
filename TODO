@@ -126,3 +126,50 @@ Flight_7: UTC 09:45:01->09:47:30 29/7/2025
 I need to recalulate and resegment again then visualize for the flight of 28 july because some of the data of the sources wasn't in the directory I copied them now. The other thing that we need to calculate is Average wind speed(if present) for all the flights of catanzaro which should be extract from this field: METEO_meteo.speed from METEO_data_2025-07-29.csv and the same for 28
 and based on this we may need to revisulaizing or adding something for this
 ---------------------------- Done finally just small problem: does the torque from flight segment related to the torque to ground segment when they are using different motors and completely separated? the all visulaization was good the forces make sense to compare in fs and gs but for the torque I don't think that make sense, right? the wind good also. >>>>>> Done!
+
+
+-------------
+RPMd=OPC_DsEncoder.outTamburo_SpeedRPM
+Td=OPC_DsInverters.Torque_ActualValue[2]
+Vi=OPC_DsInverters.Velocity_ActualValue[2]
+Pinv=OPC_DsInverters.Power[2]
+Pbatt=That from HMI
+Ftot=From HMI
+Here what we have to calculate for each flight of the very last 3 flights: {5,6,7}
+Mean, Max, Min
+PoMecD = RPMd/60 * pi *0.491 * Total_forces * 9.81
+PoMecGen = Vi / 60 * 2 pi * Td
+Pinv = OPC_DsInverters.Torque_ActualValue[2]
+PoBatt = OPC_CONV_MEAS_FB_LS_PWR_SCALED_CALC
+
+--------------------
+For flights 5,6,7
+	Both for Left and Right Torque
+Let's call Tl=abs(Torqe_left) (do the same for right)
+ 
+For each flight let's use Tl to build several time-series. How?
+Just computing several moving averages. A time-series for each averaging window.
+The time windows shall have these widths
+0s (not averaged)
+1s
+2s
+3s
+5s
+7s
+10s
+15s
+20s
+30s
+60s
+90s
+120s
+180s
+These will form an array named t_width=[0 1 2 3 5 ....]
+ 
+For each timseries, let's take the Maximum value, and put it in an array called Av_Tl (Av_Tr for the right motor)
+ 
+Finally, for each flight we can build a graph with 2 series of data
+1. t_width vs Av_Tl
+2. t_width vs Av_Tr
+-----------------------------
+
