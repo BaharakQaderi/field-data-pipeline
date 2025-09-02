@@ -22,10 +22,25 @@ flights = [
 # Base directories
 base_dir = '/Users/baharakqaderi/field-data-pipeline/flight_analysis_catanzaro'
 
+def calculate_flight_duration(start_time, end_time):
+    """Calculate flight duration in minutes and seconds"""
+    start_dt = datetime.strptime(start_time, "%H:%M:%S")
+    end_dt = datetime.strptime(end_time, "%H:%M:%S")
+    duration = end_dt - start_dt
+    
+    total_seconds = duration.total_seconds()
+    minutes = int(total_seconds // 60)
+    seconds = int(total_seconds % 60)
+    
+    return f"{minutes}m {seconds}s"
+
 def create_catanzaro_visualizations(folder_name, date, start_time, end_time, flight_name):
-    """Create comprehensive visualizations for a Catanzaro flight"""
+    """Create comprehensive visualizations for a Catanzaro flight with enhanced titles and metrics"""
     
     folder_path = os.path.join(base_dir, folder_name)
+    
+    # Calculate flight duration
+    flight_duration = calculate_flight_duration(start_time, end_time)
     
     # Load available data files
     fs_data = pd.DataFrame()
@@ -38,8 +53,14 @@ def create_catanzaro_visualizations(folder_name, date, start_time, end_time, fli
         fs_data = pd.read_csv(fs_file)
         fs_data['_time'] = pd.to_datetime(fs_data['_time'], format='mixed')
     
+    # Try to load enhanced OPC data first, fallback to regular OPC data
+    enhanced_opc_file = os.path.join(folder_path, 'opc_data_enhanced.csv')
     opc_file = os.path.join(folder_path, 'opc_data.csv')
-    if os.path.exists(opc_file):
+    if os.path.exists(enhanced_opc_file):
+        opc_data = pd.read_csv(enhanced_opc_file)
+        opc_data['_time'] = pd.to_datetime(opc_data['_time'], format='mixed')
+        print(f"  Loaded enhanced OPC data with calculated metrics")
+    elif os.path.exists(opc_file):
         opc_data = pd.read_csv(opc_file)
         opc_data['_time'] = pd.to_datetime(opc_data['_time'], format='mixed')
     
@@ -53,9 +74,19 @@ def create_catanzaro_visualizations(folder_name, date, start_time, end_time, fli
         meteo_data = pd.read_csv(meteo_file)
         meteo_data['_time'] = pd.to_datetime(meteo_data['_time'], format='mixed')
     
+    # Calculate brake status
+    brake_engaged_percentage = 0.0
+    if not gs_data.empty and 'GROUND_SEGMENT_brake_command' in gs_data.columns:
+        brake_engaged_percentage = (gs_data['GROUND_SEGMENT_brake_command'] == 1).mean() * 100
+    
+    # Create enhanced title with duration and brake status
+    enhanced_title = (f'Catanzaro Flight Analysis: {flight_name}\n'
+                     f'Date: {date} | Time: {start_time} - {end_time} | Duration: {flight_duration}\n'
+                     f'POD Brake Status: {brake_engaged_percentage:.1f}% engaged')
+    
     # Create time-based plots
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    fig.suptitle(f'Catanzaro Flight Analysis: {flight_name}\nDate: {date} | Time: {start_time} - {end_time}', fontsize=16, fontweight='bold')
+    fig.suptitle(enhanced_title, fontsize=16, fontweight='bold')
     
     # 1. Force Comparison (FS vs GS)
     ax1 = axes[0, 0]
@@ -75,47 +106,86 @@ def create_catanzaro_visualizations(folder_name, date, start_time, end_time, fli
     ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     ax1.tick_params(axis='x', rotation=45)
     
-    # 2. Flight Control Torques (FS Left/Right only)
+    # 2. Enhanced Power Metrics (PoMecD, PoMecGen, PoBatt)
     ax2 = axes[0, 1]
-    if not fs_data.empty:
-        if 'FLIGHT_SEGMENT_l_torque' in fs_data.columns:
-            torque_left = fs_data['FLIGHT_SEGMENT_l_torque'].fillna(0)
-            ax2.plot(fs_data['_time'], torque_left, label='Left Control Torque', color='blue', alpha=0.8, linewidth=2)
+    if not opc_data.empty and 'PoMecD' in opc_data.columns:
+        # Plot the calculated power metrics
+        if 'PoMecD' in opc_data.columns:
+            pomec_d = opc_data['PoMecD'].fillna(0)
+            pomec_d_clean = pomec_d[pomec_d != 0]
+            if len(pomec_d_clean) > 0:
+                ax2.plot(opc_data['_time'], pomec_d, label=f'PoMecD (Mean: {pomec_d_clean.mean():.1f})', color='purple', alpha=0.8, linewidth=2)
         
-        if 'FLIGHT_SEGMENT_r_torque' in fs_data.columns:
-            torque_right = fs_data['FLIGHT_SEGMENT_r_torque'].fillna(0)
-            ax2.plot(fs_data['_time'], torque_right, label='Right Control Torque', color='red', alpha=0.8, linewidth=2)
+        if 'PoMecGen' in opc_data.columns:
+            pomec_gen = opc_data['PoMecGen'].fillna(0)
+            pomec_gen_clean = pomec_gen[pomec_gen != 0]  
+            if len(pomec_gen_clean) > 0:
+                ax2.plot(opc_data['_time'], pomec_gen, label=f'PoMecGen (Mean: {pomec_gen_clean.mean():.1f})', color='orange', alpha=0.8, linewidth=2)
         
-        # Add torque difference
-        if 'FLIGHT_SEGMENT_l_torque' in fs_data.columns and 'FLIGHT_SEGMENT_r_torque' in fs_data.columns:
-            torque_diff = abs(torque_left - torque_right)
-            ax2.plot(fs_data['_time'], torque_diff, label='|Left - Right|', color='green', linestyle='--', linewidth=1.5)
+        if 'PoBatt' in opc_data.columns:
+            po_batt = opc_data['PoBatt'].fillna(0)
+            po_batt_clean = po_batt[po_batt != 0]
+            if len(po_batt_clean) > 0:
+                ax2.plot(opc_data['_time'], po_batt, label=f'PoBatt (Mean: {po_batt_clean.mean():.1f})', color='green', alpha=0.8, linewidth=2)
     else:
-        ax2.text(0.5, 0.5, 'No Flight Control\\nTorque Data', ha='center', va='center', transform=ax2.transAxes, fontsize=12)
+        # Fallback to Flight Control Torques if enhanced metrics not available
+        if not fs_data.empty:
+            if 'FLIGHT_SEGMENT_l_torque' in fs_data.columns:
+                torque_left = fs_data['FLIGHT_SEGMENT_l_torque'].fillna(0)
+                ax2.plot(fs_data['_time'], torque_left, label='Left Control Torque', color='blue', alpha=0.8, linewidth=2)
+            
+            if 'FLIGHT_SEGMENT_r_torque' in fs_data.columns:
+                torque_right = fs_data['FLIGHT_SEGMENT_r_torque'].fillna(0)
+                ax2.plot(fs_data['_time'], torque_right, label='Right Control Torque', color='red', alpha=0.8, linewidth=2)
+            
+            # Add torque difference
+            if 'FLIGHT_SEGMENT_l_torque' in fs_data.columns and 'FLIGHT_SEGMENT_r_torque' in fs_data.columns:
+                torque_diff = abs(torque_left - torque_right)
+                ax2.plot(fs_data['_time'], torque_diff, label='|Left - Right|', color='green', linestyle='--', linewidth=1.5)
+        else:
+            ax2.text(0.5, 0.5, 'No Enhanced Power\\nMetrics Available', ha='center', va='center', transform=ax2.transAxes, fontsize=12)
     
-    ax2.set_title('Flight Control Torques (Small Control Motors)')
+    # Set title based on what data is available
+    if not opc_data.empty and 'PoMecD' in opc_data.columns:
+        ax2.set_title('Enhanced Power Metrics: PoMecD, PoMecGen, PoBatt')
+        ax2.set_ylabel('Power')
+    else:
+        ax2.set_title('Flight Control Torques (Small Control Motors)')
+        ax2.set_ylabel('Control Torque')
+    
     ax2.set_xlabel('Time')
-    ax2.set_ylabel('Control Torque')
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     ax2.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     ax2.tick_params(axis='x', rotation=45)
     
-    # 3. Generator Torque (Power Generation System)
+    # 3. Generator Torque and RPM
     ax3 = axes[1, 0]
-    if not opc_data.empty and 'OPC_DsInverters.Torque_ActualValue[2]' in opc_data.columns:
-        gen_torque = opc_data['OPC_DsInverters.Torque_ActualValue[2]'].fillna(0)
-        ax3.plot(opc_data['_time'], gen_torque, color='purple', linewidth=2, 
-                label=f'Generator (Max: {gen_torque.max():.1f}, Avg: {gen_torque.mean():.1f})')
-        ax3.axhline(y=gen_torque.mean(), color='purple', linestyle='--', alpha=0.7, label=f'Mean: {gen_torque.mean():.1f}')
-        ax3.axhline(y=gen_torque.max(), color='red', linestyle=':', alpha=0.7, label=f'Max: {gen_torque.max():.1f}')
+    if not opc_data.empty:
+        # Plot generator torque
+        if 'OPC_DsInverters.Torque_ActualValue[2]' in opc_data.columns:
+            gen_torque = opc_data['OPC_DsInverters.Torque_ActualValue[2]'].fillna(0)
+            ax3.plot(opc_data['_time'], gen_torque, color='purple', linewidth=2, 
+                    label=f'Generator Torque (Max: {gen_torque.max():.1f}, Avg: {gen_torque.mean():.1f})')
+        
+        # Add secondary axis for RPM
+        if 'OPC_DsEncoder.outTamburo_SpeedRPM' in opc_data.columns:
+            ax3_twin = ax3.twinx()
+            rpm = opc_data['OPC_DsEncoder.outTamburo_SpeedRPM'].fillna(0)
+            ax3_twin.plot(opc_data['_time'], rpm, color='red', linewidth=1.5, alpha=0.7,
+                         label=f'RPM (Max: {rpm.max():.1f})')
+            ax3_twin.set_ylabel('RPM', color='red')
+            ax3_twin.tick_params(axis='y', labelcolor='red')
+            ax3_twin.legend(loc='upper right')
+        
+        ax3.set_ylabel('Generator Torque', color='purple')
+        ax3.tick_params(axis='y', labelcolor='purple')
+        ax3.legend(loc='upper left')
     else:
-        ax3.text(0.5, 0.5, 'No Generator\\nTorque Data', ha='center', va='center', transform=ax3.transAxes, fontsize=12)
+        ax3.text(0.5, 0.5, 'No Generator/RPM\\nData Available', ha='center', va='center', transform=ax3.transAxes, fontsize=12)
     
-    ax3.set_title('Generator Torque (Large Ground Motor)')
+    ax3.set_title('Generator Torque and Drum RPM')
     ax3.set_xlabel('Time')
-    ax3.set_ylabel('Generator Torque')
-    ax3.legend()
     ax3.grid(True, alpha=0.3)
     ax3.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     ax3.tick_params(axis='x', rotation=45)
@@ -157,7 +227,7 @@ def create_catanzaro_visualizations(folder_name, date, start_time, end_time, fli
     
     # Create distribution plots
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle(f'Catanzaro Flight Distributions: {flight_name} ({date})', fontsize=16, fontweight='bold')
+    fig.suptitle(f'Catanzaro Flight Distributions: {flight_name} ({date}) | Duration: {flight_duration} | Brake: {brake_engaged_percentage:.1f}%', fontsize=16, fontweight='bold')
     
     # Force distributions comparison
     ax1 = axes[0, 0]

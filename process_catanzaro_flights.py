@@ -50,10 +50,33 @@ def load_data_sources(date):
     
     return data_sources
 
-def calculate_catanzaro_metrics(flight_segment_data, opc_data, meteo_data):
-    """Calculate metrics specific to Catanzaro flights"""
+def calculate_flight_duration(start_time, end_time):
+    """Calculate flight duration in minutes and seconds"""
+    start_dt = datetime.strptime(start_time, "%H:%M:%S")
+    end_dt = datetime.strptime(end_time, "%H:%M:%S")
+    duration = end_dt - start_dt
+    
+    total_seconds = duration.total_seconds()
+    minutes = int(total_seconds // 60)
+    seconds = int(total_seconds % 60)
+    
+    return f"{minutes}m {seconds}s", total_seconds
+
+def calculate_catanzaro_metrics(flight_segment_data, opc_data, meteo_data, ground_segment_data, start_time, end_time):
+    """Calculate metrics specific to Catanzaro flights including enhanced power metrics"""
     
     metrics = {}
+    pi = np.pi
+    
+    # Calculate flight duration and brake percentage
+    flight_duration_str, flight_duration_seconds = calculate_flight_duration(start_time, end_time)
+    metrics['Flight Duration'] = flight_duration_str
+    metrics['Flight Duration (seconds)'] = flight_duration_seconds
+    
+    # POD Brake status
+    if not ground_segment_data.empty and 'GROUND_SEGMENT_brake_command' in ground_segment_data.columns:
+        brake_engaged_percentage = (ground_segment_data['GROUND_SEGMENT_brake_command'] == 1).mean() * 100
+        metrics['POD Brake engaged percentage'] = brake_engaged_percentage
     
     # Flight Segment metrics (FS)
     if not flight_segment_data.empty:
@@ -69,7 +92,7 @@ def calculate_catanzaro_metrics(flight_segment_data, opc_data, meteo_data):
         metrics['Average torque (left and right) mean(abs(torque_left),abs(torque_right))'] = (abs(torque_left).mean() + abs(torque_right).mean()) / 2
         metrics['Average torque diff mean(abs(torque_left - torque_right))'] = abs(torque_left - torque_right).mean()
     
-    # OPC metrics (Ground Station)
+    # Enhanced OPC metrics (Ground Station) with new power calculations
     if not opc_data.empty:
         # Force metrics from GS (OPC_DsLoadCells.MeasureFloat_SUM)
         if 'OPC_DsLoadCells.MeasureFloat_SUM' in opc_data.columns:
@@ -82,6 +105,55 @@ def calculate_catanzaro_metrics(flight_segment_data, opc_data, meteo_data):
             gen_torque = opc_data['OPC_DsInverters.Torque_ActualValue[2]'].fillna(0)
             metrics['Average torque generator'] = gen_torque.mean()
             metrics['Max torque generator'] = gen_torque.max()
+        
+        # Enhanced Power Metrics Calculation
+        # Field mapping from your requirements:
+        required_fields = {
+            'RPMd': 'OPC_DsEncoder.outTamburo_SpeedRPM',
+            'Td': 'OPC_DsInverters.Torque_ActualValue[2]', 
+            'Vi': 'OPC_DsInverters.Velocity_ActualValue[2]',
+            'Pinv': 'OPC_DsInverters.Power[2]',
+            'Pbatt': 'OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_PWR_SCALED_CALC',
+            'Ftot': 'OPC_DsLoadCells.MeasureFloat_SUM'
+        }
+        
+        # Extract data for power calculations
+        data_dict = {}
+        for var_name, field_name in required_fields.items():
+            if field_name in opc_data.columns:
+                data_dict[var_name] = opc_data[field_name].fillna(0)
+                # Note: Individual field statistics removed per user request
+            else:
+                print(f"    Warning: Field {field_name} not found in OPC data")
+                data_dict[var_name] = pd.Series([0] * len(opc_data))
+        
+        # Calculate enhanced power metrics if we have data
+        if len(data_dict['RPMd']) > 0:
+            # PoMecD = RPMd/60 * pi * 0.491 * Ftot * 9.81
+            PoMecD = (- data_dict['RPMd'] / 60 * pi * 0.491 * data_dict['Ftot'] * 9.81) / 1000  
+            
+            # PoMecGen = Vi / 60 * 2 * pi * Td  
+            PoMecGen = (- data_dict['Vi'] / 60 * 2 * pi * data_dict['Td']) * 6 / 1000 
+            
+            # PoBatt = OPC_CONV_MEAS_FB_LS_PWR_SCALED_CALC (already extracted)
+            PoBatt = data_dict['Pbatt']
+            
+            # Add calculated metrics to OPC data
+            opc_data['PoMecD'] = PoMecD
+            opc_data['PoMecGen'] = PoMecGen  
+            opc_data['PoBatt'] = PoBatt
+            
+            # Calculate statistics for each power metric
+            for name, series in [('PoMecD', PoMecD), ('PoMecGen', PoMecGen), ('PoBatt', PoBatt)]:
+                clean_series = series[series != 0]
+                if len(clean_series) > 0:
+                    metrics[f'{name}_Mean'] = clean_series.mean()
+                    metrics[f'{name}_Max'] = clean_series.max()
+                    metrics[f'{name}_Min'] = clean_series.min()
+                else:
+                    metrics[f'{name}_Mean'] = 0
+                    metrics[f'{name}_Max'] = 0
+                    metrics[f'{name}_Min'] = 0
     
     # METEO metrics (Wind Speed)
     if not meteo_data.empty:
@@ -102,7 +174,7 @@ def calculate_catanzaro_metrics(flight_segment_data, opc_data, meteo_data):
                 mean_direction += 360
             metrics['Average wind direction'] = mean_direction
     
-    return metrics
+    return metrics, opc_data
 
 # Process each flight
 for i, (date, start_time, end_time, flight_name) in enumerate(flights):
@@ -157,10 +229,10 @@ for i, (date, start_time, end_time, flight_name) in enumerate(flights):
         ].copy()
         print(f"  Found {len(meteo_data)} METEO data points")
     
-    # Calculate metrics
-    metrics = calculate_catanzaro_metrics(flight_segment_data, opc_data, meteo_data)
+    # Calculate enhanced metrics including new power calculations
+    metrics, enhanced_opc_data = calculate_catanzaro_metrics(flight_segment_data, opc_data, meteo_data, ground_segment_data, start_time, end_time)
     
-    # Add brake command analysis
+    # Add traditional brake command analysis for backward compatibility
     if not ground_segment_data.empty:
         brake_stats = {
             'Brake command - total records': len(ground_segment_data),
@@ -206,6 +278,12 @@ for i, (date, start_time, end_time, flight_name) in enumerate(flights):
         opc_file = os.path.join(folder_path, 'opc_data.csv')
         opc_data.to_csv(opc_file, index=False)
         print(f"  Saved OPC data to {opc_file}")
+        
+        # Save enhanced OPC data with calculated power metrics columns if they exist
+        if 'PoMecD' in enhanced_opc_data.columns:
+            enhanced_opc_file = os.path.join(folder_path, 'opc_data_enhanced.csv')
+            enhanced_opc_data.to_csv(enhanced_opc_file, index=False)
+            print(f"  Saved enhanced OPC data with calculated metrics to {enhanced_opc_file}")
     
     if not meteo_data.empty:
         meteo_file = os.path.join(folder_path, 'meteo_data.csv')
