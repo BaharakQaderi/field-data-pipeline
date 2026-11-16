@@ -1,0 +1,217 @@
+# KTE_2030_FTC_0001 — events, sources and field lists for ftc_extract.py
+# OPC list = official list from the electrical team (12 Nov 2026).
+
+campaign: KTE_2030_FTC_0001
+raw_root: ~/Desktop/Calabria_Oct_2026
+ipok_dir: ~/Desktop/Calabria_Oct_2026/flights          # Fra's per-flight IPOK files
+influx:
+  url: https://influx.kitenrg.loc
+  bucket: gs_mirror
+  cafile: ~/certs/kitenrg-intranet.pem                  # pinned server cert (partial chain)
+pad_s: 120          # context extracted before/after the official window
+grid_ms: 50         # unified CSV rate (20 Hz, the Flight Segment rate)
+# Resampling onto the grid (ftc_extract.resample): continuous columns of OPC, FLIGHT_SEGMENT, IPOK and WIND are
+# interpolated linearly in time, never across a gap longer than 2.5 native sample periods; status/flag/counter
+# columns and event-based sources (TARANIS, THROTTLE, commands, links) hold their last value. Angles that wrap
+# are unwrapped before interpolating.
+hold_sources: [TARANIS, THROTTLE, CMD, BRIDGE, GS_UPLINK_COMMAND, FS_MAINTENANCE]
+wrap_deg: [POD_azimuth_deg, POD_kite_roll_deg, POD_kite_yaw_deg, WIND_direction_deg, IPOK_Roll, IPOK_Yaw]
+# <stem>_full_source.csv: these sources only, every column under its original name (Influx field / IPOK column)
+full_source: [FLIGHT_SEGMENT, OPC, IPOK, TARANIS, THROTTLE, WIND]
+event_lookback_s: 1800   # event-based sources: look back this far for the value held at the window start
+
+# Official windows in UTC (from KTE_2030_FTC_0001.md, the master). day_dir = raw log folder.
+events:
+  KTE_2030_FTC_0001_20261022_S1E1: {start: "2026-10-22T08:15:56Z", stop: "2026-10-22T08:39:29Z", day_dir: TEST-22102026}
+  KTE_2030_FTC_0001_20261022_S1E3: {start: "2026-10-22T09:59:18Z", stop: "2026-10-22T10:23:18Z", day_dir: TEST-22102026}
+  KTE_2030_FTC_0001_20261022_S2E3: {start: "2026-10-22T13:32:26Z", stop: "2026-10-22T13:53:00Z", day_dir: TEST-22102026}
+  KTE_2030_FTC_0001_20261024_S4E1: {start: "2026-10-24T09:38:48Z", stop: "2026-10-24T10:07:53Z", day_dir: TEST-24102026}
+  KTE_2030_FTC_0001_20261028_S1E5: {start: "2026-10-28T14:14:00Z", stop: "2026-10-28T14:26:00Z", day_dir: TEST-28102026, approx: true}
+  KTE_2030_FTC_0001_20261028_S1E6: {start: "2026-10-28T14:48:32Z", stop: "2026-10-28T14:57:28Z", day_dir: TEST-28102026}
+  KTE_2030_FTC_0001_20261028_S1E7: {start: "2026-10-28T15:21:34Z", stop: "2026-10-28T15:47:00Z", day_dir: TEST-28102026}
+
+# Influx sources: prefix in the outputs, staleness limit on the 10 Hz grid (null = event source, value is held),
+# fields as {output name: influx field}.
+sources:
+  OPC:
+    prefix: OPC_
+    max_age_s: 0.2
+    fields:
+      force_sum_kg: OPC_DsLoadCells.MeasureFloat_SUM
+      force_1_kg: OPC_DsLoadCells.MeasureFloat[1]
+      force_2_kg: OPC_DsLoadCells.MeasureFloat[2]
+      force_3_kg: OPC_DsLoadCells.MeasureFloat[3]
+      force_4_kg: OPC_DsLoadCells.MeasureFloat[4]
+      drum_speed_ms: OPC_DsEncoder.outTamburo_SpeedMSec          # < 0 = reel-out
+      drum_speed_rpm: OPC_DsEncoder.outTamburo_SpeedRPM
+      winded_length_m: OPC_DsEncoder.outTamburo_WindedLength     # cable wound on the drum
+      batt_power_kw: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_PWR_SCALED_CALC   # > 0 = charging
+      ls_voltage_1_v: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_VOLTAGE_SCALED[1]
+      ls_voltage_2_v: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_VOLTAGE_SCALED[2]
+      ls_voltage_3_v: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_VOLTAGE_SCALED[3]
+      ls_voltage_4_v: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_VOLTAGE_SCALED[4]
+      ls_current_1_a: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_AVG_CURR_SCALED[1]
+      ls_current_2_a: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_AVG_CURR_SCALED[2]
+      ls_current_3_a: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_AVG_CURR_SCALED[3]
+      ls_current_4_a: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_LS_AVG_CURR_SCALED[4]
+      hs_power_1_w: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_HS_AVG_PWR_SCALED[1]   # > 0 = charging (electrical, 12 Nov)
+      hs_power_2_w: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_HS_AVG_PWR_SCALED[2]
+      hs_power_3_w: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_HS_AVG_PWR_SCALED[3]
+      hs_power_4_w: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_HS_AVG_PWR_SCALED[4]
+      hs_voltage_1_v: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_HS_VOLTAGE_SCALED[1]
+      hs_voltage_2_v: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_HS_VOLTAGE_SCALED[2]
+      hs_voltage_3_v: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_HS_VOLTAGE_SCALED[3]
+      hs_voltage_4_v: OPC_ConvStruct.CONV_READ.CONV_MEAS_FB_HS_VOLTAGE_SCALED[4]
+      inv1_torque_actual: OPC_DsInverters.Torque_ActualValue[1]    # INV1 = Recovery motor, Profile Torque mode (TCN_0021)
+      inv1_torque_target: OPC_DsInverters.Torque_Target[1]
+      inv1_velocity_actual_rpm: OPC_DsInverters.Velocity_ActualValue[1]
+      inv1_velocity_target_rpm: OPC_DsInverters.Velocity_Target[1]
+      inv1_voltage: OPC_DsInverters.Voltage[1]
+      inv1_current: OPC_DsInverters.Current[1]
+      inv2_torque_actual: OPC_DsInverters.Torque_ActualValue[2]    # INV2 = Generator motor (torque in generation, velocity in recovery); N·m per motor
+      inv2_torque_target: OPC_DsInverters.Torque_Target[2]
+      inv2_velocity_actual_rpm: OPC_DsInverters.Velocity_ActualValue[2]
+      inv2_velocity_target_rpm: OPC_DsInverters.Velocity_Target[2]
+      inv2_voltage: OPC_DsInverters.Voltage[2]
+      inv2_current: OPC_DsInverters.Current[2]
+      inv3_torque_actual: OPC_DsInverters.Torque_ActualValue[3]    # INV3: Profile Velocity mode; position follows WindedLength (thread guide?)
+      inv3_velocity_actual_rpm: OPC_DsInverters.Velocity_ActualValue[3]
+      inv1_position_actual: OPC_DsInverters.ProfilePosition_PositionActual[1]
+      inv2_position_actual: OPC_DsInverters.ProfilePosition_PositionActual[2]
+      inv3_position_actual: OPC_DsInverters.ProfilePosition_PositionActual[3]
+      inv1_iit_active: OPC_DsInverters.InternalLimitActive[1]
+      inv2_iit_active: OPC_DsInverters.InternalLimitActive[2]
+      inv3_iit_active: OPC_DsInverters.InternalLimitActive[3]
+      inv1_fault: OPC_DsInverters.StateDrive_Fault[1]
+      inv2_fault: OPC_DsInverters.StateDrive_Fault[2]
+      inv3_fault: OPC_DsInverters.StateDrive_Fault[3]
+      plc_state: OPC_DsStateMachine.ACTUAL_STATE   # 4 = Generation, 6 = Recovery, 10 = Service … (names in ftc_cycles.PLC_STATE)
+      brake_cnt_en: OPC_BRAKE_CNT_EN   # 1 = brake released = recovery motor (INV1) engaged (Transition Rec, TCN_0021)
+      joy_torque_pct: OPC_DsExternalData.Joystick_Percentual_Target_Torque
+      joy_velocity_n_pct: OPC_DsExternalData.Joystick_Percentual_Target_VelocityN
+      joy_velocity_p_pct: OPC_DsExternalData.Joystick_Percentual_Target_VelocityP
+
+  FLIGHT_SEGMENT:
+    prefix: POD_
+    max_age_s: 0.3      # torque 10 Hz, battery/status 5 Hz
+    fields:
+      servo_left_torque_nm: FLIGHT_SEGMENT_servo_a_torque    # V3: servo_a = LEFT
+      servo_right_torque_nm: FLIGHT_SEGMENT_servo_b_torque   # V3: servo_b = RIGHT
+      servo_left_temp_c: FLIGHT_SEGMENT_servo_a_temp
+      servo_right_temp_c: FLIGHT_SEGMENT_servo_b_temp
+      servo_left_status: FLIGHT_SEGMENT_servo_a_status
+      servo_right_status: FLIGHT_SEGMENT_servo_b_status
+      pitch_pct: FLIGHT_SEGMENT_pitch          # measured depower axis; -100 % decodes as null
+      roll_pct: FLIGHT_SEGMENT_roll            # measured steering axis
+      voltage_v: FLIGHT_SEGMENT_voltage
+      current_a: FLIGHT_SEGMENT_current        # total pack current, >= 0
+      power_w: FLIGHT_SEGMENT_power
+      charge_pct: FLIGHT_SEGMENT_charge        # energy counter, not measured SoC
+      azimuth_deg: FLIGHT_SEGMENT_azimuth
+      elevation_deg: FLIGHT_SEGMENT_elevation
+      radius_m: FLIGHT_SEGMENT_radius
+      velocity_az_ms: FLIGHT_SEGMENT_velocity_az
+      velocity_el_ms: FLIGHT_SEGMENT_velocity_el
+      velocity_r_ms: FLIGHT_SEGMENT_velocity_r
+      kite_pitch_deg: FLIGHT_SEGMENT_pitch_angle
+      kite_roll_deg: FLIGHT_SEGMENT_roll_angle
+      kite_yaw_deg: FLIGHT_SEGMENT_yaw_angle
+      fs_operating_status: FLIGHT_SEGMENT_fs_operating_status
+      fs_datalink_status: FLIGHT_SEGMENT_fs_datalink_status
+      uplink_per_pct: FLIGHT_SEGMENT_uplink_per
+      ipok_status: FLIGHT_SEGMENT_ipok_status
+      gps_status: FLIGHT_SEGMENT_gps_status
+      controller_temp_c: FLIGHT_SEGMENT_controller_temp
+      activity_time_s: FLIGHT_SEGMENT_activity_time
+      counter: FLIGHT_SEGMENT_counter
+      controller_time: FLIGHT_SEGMENT_controller_time
+      fs_id: FLIGHT_SEGMENT_fs_id
+      pod_version: FLIGHT_SEGMENT_pod_version
+      autopilot_status: FLIGHT_SEGMENT_autopilot_status
+      controller_status: FLIGHT_SEGMENT_controller_status
+      depower_mode_engaged: FLIGHT_SEGMENT_depower_mode_engaged
+      power_mode_engaged: FLIGHT_SEGMENT_power_mode_engaged
+      force_power_depower_status: FLIGHT_SEGMENT_force_power_depower_status
+      node_id: FLIGHT_SEGMENT_node_id
+      wing_lights_status: FLIGHT_SEGMENT_wing_lights_status
+
+  BRIDGE:
+    prefix: LINK_
+    max_age_s: 1.0
+    fields:
+      gs_datalink_status: BRIDGE_gs_datalink_status
+      link_source: BRIDGE_link_source          # 0 = MAIN 2.4 GHz, 1 = BACKUP 868 MHz
+      downlink_per_pct: BRIDGE_downlink_per
+      main_link_status: BRIDGE_main_link_status
+      backup_link_status: BRIDGE_backup_link_status
+      main_downlink_per_pct: BRIDGE_main_downlink_per
+      backup_downlink_per_pct: BRIDGE_backup_downlink_per
+      lost_packets: BRIDGE_lost_packets        # cumulative
+      seconds_since_last_rx: BRIDGE_seconds_since_last_rx
+
+  GS_UPLINK_COMMAND:
+    prefix: UPL_
+    max_age_s: 1.0
+    native_only: true     # 2 Hz cross-check of the sent log; not in the unified CSV
+    fields:
+      pitch_pct: GS_UPLINK_COMMAND_pitch
+      roll_pct: GS_UPLINK_COMMAND_roll
+      gs_operating_status: GS_UPLINK_COMMAND_gs_operating_status
+
+  TARANIS:
+    prefix: TARANIS_
+    max_age_s: null
+    fields:
+      pitch_pct: TARANIS_Pitch
+      roll_pct: TARANIS_Roll
+      connected: TARANIS_connected
+      piswth: TARANIS_Piswth
+
+  THROTTLE:
+    prefix: THR_
+    max_age_s: null
+    fields:
+      torque_pct: THROTTLE_DsExternalData.Joystick_Percentual_Target_Torque
+      velocity_n_pct: THROTTLE_DsExternalData.Joystick_Percentual_Target_VelocityN
+      velocity_p_pct: THROTTLE_DsExternalData.Joystick_Percentual_Target_VelocityP
+      requested_state: THROTTLE_DsStateMachine.REQUESTED_STATE
+      connected: THROTTLE_connected
+
+  WIND:
+    prefix: WIND_
+    max_age_s: 0.5
+    fields:
+      speed_ms: WIND_wind.speed
+      direction_deg: WIND_wind.direction
+      connected: WIND_wind.connected
+
+  FS_MAINTENANCE:
+    prefix: PLC_
+    max_age_s: null
+    fields:
+      gs_operating_status_raw: FS_MAINTENANCE_gs_operating_status
+
+# Config snapshot stored in meta.json (last value before the window end)
+config_snapshot:
+  OPC_CONFIG:
+    - OPC_CONFIG_DsInverters.Torque_MotorRated[1]
+    - OPC_CONFIG_DsInverters.Torque_MotorRated[2]
+    - OPC_CONFIG_DsInverters.Torque_MaxTorque[1]
+    - OPC_CONFIG_DsInverters.Torque_MaxTorque[2]
+    - OPC_CONFIG_DsInverters.TorqueMaxScale_Torque
+    - OPC_CONFIG_DsInverters.TorqueMaxScale_Velocity
+    - OPC_CONFIG_DsInverters.Torque_Slope[2]
+
+# Log files read from <raw_root>/<day_dir>
+logs:
+  gs_sent:
+    glob: "**/ground_segment_packets_sent_*.csv"
+    time_col: send_time
+    prefix: CMD_
+    max_age_s: 0.1
+    columns: [pitch, roll, status_request, fail_safe, emergency, maintenance_motor_arm, gs_operating_status, gs_datalink_status, counter]
+  ipok:
+    prefix: IPOK_
+    max_age_s: 0.05
+    max_age_override: {GnssFixType: 1.0, GnssNumSV: 1.0, GnssHAcc_mm: 1.0, GnssVAcc_mm: 1.0}   # slower GNSS-quality rows
+    csv_columns: all     # every numeric column of the raw file (text timestamps FormattedUtcTime, deviceUtc dropped)

@@ -1,0 +1,548 @@
+<title>KTE Flight Replay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: flight-test console. Summary strip on top, 3D sky view beside a live readout column,
+   transport + timeline, then four linked charts that share one cursor. Sky blue = generation, orange = recovery. */
+:root {
+  --bg: #f3f6f8; --panel: #ffffff; --sky: #e6eef4; --ink: #14212b; --ink2: #56646f; --line: #d8e0e6;
+  --gen: #2a78d6; --rec: #eb6834; --aqua: #1baf7a; --kite: #14212b; --neutral: #b9c3ca;
+  --good: #0ca30c; --warn: #fab219; --bad: #d03b3b;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1418; --panel: #151e24; --sky: #111a20; --ink: #e6edf1; --ink2: #98a6b0; --line: #26323a;
+    --gen: #3987e5; --rec: #e0652f; --aqua: #199e70; --kite: #f2f6f8; --neutral: #4a5862; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1418; --panel: #151e24; --sky: #111a20; --ink: #e6edf1; --ink2: #98a6b0; --line: #26323a;
+  --gen: #3987e5; --rec: #e0652f; --aqua: #199e70; --kite: #f2f6f8; --neutral: #4a5862; color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--body); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1400px; margin: 0 auto; padding-block: 18px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 14px; }
+.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; }
+.eyebrow { font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink2); }
+h1 { font: 750 clamp(24px, 3.4vw, 34px)/1.05 var(--display); font-stretch: 78%; margin: 6px 0 0; letter-spacing: -.01em; text-wrap: balance; }
+.pick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pick label { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink2); }
+select, button { font: 500 13px var(--body); color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 10px; cursor: pointer; }
+select:focus-visible, button:focus-visible, canvas:focus-visible { outline: 2px solid var(--gen); outline-offset: 2px; }
+button:hover, select:hover { border-color: var(--ink2); }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.tile { background: var(--panel); padding: 10px 14px; display: grid; gap: 2px; min-width: 0; }
+.tile .k { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--ink2); }
+.tile .v { font: 700 22px/1.1 var(--display); font-stretch: 85%; font-variant-numeric: tabular-nums; }
+.tile .v small { font: 500 12px var(--mono); color: var(--ink2); margin-left: 3px; }
+.tile .v.neg { color: var(--rec); } .tile .v.pos { color: var(--gen); }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; }
+@media (max-width: 920px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+.view { position: relative; background: var(--sky); border: 1px solid var(--line); border-radius: var(--r);
+  height: clamp(340px, 58vh, 640px); overflow: hidden; min-width: 0; }
+#three { width: 100%; height: 100%; display: block; touch-action: none; }
+.hud { position: absolute; left: 12px; top: 10px; display: grid; gap: 4px; pointer-events: none; }
+.clock { font: 500 26px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.clock small { font-size: 12px; color: var(--ink2); margin-left: 6px; }
+.chip { justify-self: start; font: 600 11px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  padding: 5px 8px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); color: var(--ink2); }
+.chip[data-ph="1"] { background: var(--gen); border-color: var(--gen); color: #fff; }
+.chip[data-ph="2"] { background: var(--rec); border-color: var(--rec); color: #fff; }
+.key3d { position: absolute; right: 12px; bottom: 10px; font: 500 11px var(--mono); color: var(--ink2);
+  background: color-mix(in srgb, var(--panel) 85%, transparent); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 8px; display: grid; gap: 3px; pointer-events: none; }
+.key3d i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.nopos { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px;
+  color: var(--ink2); font: 500 14px var(--body); }
+.readout { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px;
+  display: grid; gap: 12px; align-content: start; min-width: 0; }
+.group h2 { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink2);
+  margin: 0 0 6px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
+.row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; }
+.row span:first-child { color: var(--ink2); }
+.row b { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.state { display: inline-flex; align-items: center; gap: 6px; }
+.state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--neutral); }
+.state[data-s="ok"]::before { background: var(--good); } .state[data-s="warn"]::before { background: var(--warn); }
+.state[data-s="bad"]::before { background: var(--bad); }
+.transport { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px;
+  display: grid; gap: 8px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#play { min-width: 92px; font-weight: 700; background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.controls .sp { flex: 1; }
+.elapsed { font: 500 13px var(--mono); color: var(--ink2); font-variant-numeric: tabular-nums; }
+#timeline { width: 100%; height: 46px; display: block; cursor: pointer; touch-action: none; }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr)); gap: 12px; }
+.chart { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px 8px; min-width: 0; }
+.chart header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.chart h3 { margin: 0; font: 650 13px var(--display); font-stretch: 90%; }
+.chart .lg { display: flex; gap: 12px; font: 500 11px var(--mono); color: var(--ink2); }
+.chart .lg i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.chart .val { font: 500 12px var(--mono); font-variant-numeric: tabular-nums; }
+.chart canvas { width: 100%; height: 140px; display: block; cursor: crosshair; touch-action: none; }
+footer { color: var(--ink2); font-size: 12.5px; max-width: 900px; }
+footer p { margin: 4px 0; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <div class="eyebrow">KTE_2030_FTC_0001 · Calabria flight-test campaign · October 2026</div>
+      <h1>Kite flight replay</h1>
+    </div>
+    <div class="pick">
+      <label for="flightSel">Flight</label>
+      <select id="flightSel"></select>
+    </div>
+  </div>
+
+  <section class="summary" id="summary" aria-label="Flight summary"></section>
+
+  <main class="stage">
+    <div class="view" id="view">
+      <canvas id="three" aria-label="3D view of the kite, tether and ground station. Drag to rotate, scroll to zoom."></canvas>
+      <div class="hud">
+        <div class="clock" id="clock">--:--:--<small>Rome</small></div>
+        <div class="chip" id="phase" data-ph="0">Between cycles</div>
+      </div>
+      <div class="key3d" id="key3d">
+        <span><i style="background:var(--gen)"></i>trail: generating (battery charging)</span>
+        <span><i style="background:var(--rec)"></i>trail: consuming</span>
+        <span>drag = rotate · scroll = zoom · right-drag = pan</span>
+      </div>
+      <div class="nopos" id="nopos" hidden>No kite position for this flight: IPOK was not recording, so only the ground-station data replays.</div>
+    </div>
+
+    <aside class="readout" aria-live="off">
+      <div class="group">
+        <h2>Ground station</h2>
+        <div class="row"><span>Force (load-cell sum)</span><b id="r_force">—</b></div>
+        <div class="row"><span>Line speed</span><b id="r_v">—</b></div>
+        <div class="row"><span>Tether on drum</span><b id="r_wl">—</b></div>
+        <div class="row"><span>Battery power</span><b id="r_pb">—</b></div>
+        <div class="row"><span>Battery energy since start</span><b id="r_eb">—</b></div>
+        <div class="row"><span>Mechanical power (F·v)</span><b id="r_pm">—</b></div>
+      </div>
+      <div class="group">
+        <h2>Kite and pod</h2>
+        <div class="row"><span>Cycle</span><b id="r_cy">—</b></div>
+        <div class="row"><span>Kite speed</span><b id="r_ks">—</b></div>
+        <div class="row"><span>Height / distance</span><b id="r_pos">—</b></div>
+        <div class="row"><span title="+ = powered, −100 = fully depowered">Pitch cmd / measured</span><b id="r_dp">—</b></div>
+        <div class="row"><span>Steering cmd / measured</span><b id="r_st">—</b></div>
+        <div class="row"><span>Motor torque left / right</span><b id="r_tq">—</b></div>
+        <div class="row"><span>Pod power</span><b id="r_podw">—</b></div>
+      </div>
+      <div class="group">
+        <h2>Conditions and links</h2>
+        <div class="row"><span>Wind</span><b id="r_wind">—</b></div>
+        <div class="row"><span>Datalink</span><b><span class="state" id="r_link">—</span></b></div>
+        <div class="row"><span>RTK</span><b><span class="state" id="r_rtk">—</span></b></div>
+      </div>
+    </aside>
+  </main>
+
+  <section class="transport" aria-label="Playback">
+    <div class="controls">
+      <button id="play" aria-pressed="false">Play</button>
+      <label for="speed" class="eyebrow">Speed</label>
+      <select id="speed">
+        <option value="1">1×</option><option value="5">5×</option><option value="10" selected>10×</option>
+        <option value="20">20×</option><option value="50">50×</option>
+      </select>
+      <label for="trailSel" class="eyebrow">Trail</label>
+      <select id="trailSel">
+        <option value="75">15 s</option><option value="150" selected>30 s</option>
+        <option value="300">60 s</option><option value="600">2 min</option>
+      </select>
+      <label class="eyebrow"><input type="checkbox" id="fullPath"> Full path</label>
+      <button id="prevC">◀ Cycle</button>
+      <button id="nextC">Cycle ▶</button>
+      <span class="sp"></span>
+      <span class="elapsed" id="elapsed">0:00 / 0:00</span>
+    </div>
+    <canvas id="timeline" tabindex="0" aria-label="Timeline. Blue = generation, orange = recovery. Click or drag to jump; arrow keys step 10 s."></canvas>
+  </section>
+
+  <section class="charts" id="charts"></section>
+
+  <footer>
+    <p>Kite position: pod-relayed azimuth, elevation and distance from the ground-station anchor (IPOK GNSS/RTK), shown East-North-Up; the tether is drawn straight. Force is the raw load-cell sum in kg as on the HMI. Power: + = generating / battery charging. Generation and recovery come from the WindedLength cycles (peak → trough → peak).</p>
+    <p>All signals are aligned on the ground-station clock at 5 samples per second. Built from the KTE_2030_FTC_0001 processed dataset.</p>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
+<script>
+const DATA = /*__DATA__*/null;
+if (!DATA) {   // the bare template has no flight data: say so instead of showing an empty page
+  document.body.innerHTML = '<p style="max-width:60ch;margin:15vh auto;padding:0 16px;font:16px/1.5 system-ui,sans-serif">' +
+    "This is the replay <b>template</b>, without flight data. Open <b>KTE_2030_FTC_0001_replay.html</b> " +
+    "(built by <code>python ftc_replay.py</code> in processed/KTE_2030_FTC_0001/replay/) instead.</p>";
+  throw new Error("replay template opened without data");
+}
+const $ = (id) => document.getElementById(id);
+const tok = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const TRAIL_MAX = 600;   // samples = 120 s at 5 Hz (longest trail option)
+let trailLen = 150;       // 30 s; older track fades out to the sky colour and is not drawn
+let F = null, idx = 0, playing = false, speed = 10, lastTs = null, lastDrawn = -1, pmax = 1;
+
+const fmt = (v, nd, unit) => (v === null || v === undefined || Number.isNaN(v)) ? "—" :
+  `${Number(v).toFixed(nd)}${unit ? " " + unit : ""}`;
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+/* ------------------------------------------------------------------ flight picker + summary */
+DATA.flights.forEach((f, i) => {
+  const o = document.createElement("option");
+  o.value = i; o.textContent = `${f.date} · ${f.code} · ${f.start_rome}${f.has_pos ? "" : " (no kite position)"}`;
+  $("flightSel").append(o);
+});
+$("flightSel").addEventListener("change", (e) => loadFlight(+e.target.value));
+$("trailSel").addEventListener("change", (e) => { trailLen = +e.target.value; lastDrawn = -1; });
+$("fullPath").addEventListener("change", (e) => { path.visible = e.target.checked; });
+
+function summary(f) {
+  const s = f.summary;
+  const tiles = [
+    ["Flight time", fmt(s.duration_min, 1), "min"], ["Pumping cycles", s.cycles, ""],
+    ["Wind avg / max", `${fmt(s.wind_mean, 1)} / ${fmt(s.wind_max, 1)}`, "m/s"],
+    ["Peak force", fmt(s.force_max, 0), "kg"],
+    ["Mechanical energy", fmt(s.e_mech, 0), "Wh", s.e_mech],
+    ["Battery net energy", fmt(s.e_batt, 0), "Wh", s.e_batt],
+    ["Main radio link", fmt(s.link_main, 1), "% of time"],
+    ["RTK fixed", fmt(s.rtk_fixed, 1), s.rtk_fixed === null ? "no IPOK" : "% of time"],
+  ];
+  $("summary").innerHTML = tiles.map(([k, v, u, sign]) =>
+    `<div class="tile"><span class="k">${k}</span><span class="v ${sign === undefined ? "" : (sign < 0 ? "neg" : "pos")}">${v}<small>${u}</small></span></div>`).join("");
+}
+
+/* ------------------------------------------------------------------ 3D scene */
+const canvas = $("three");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 1, 6000);
+const controls = new THREE.OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08; controls.maxPolarAngle = Math.PI * 0.495;
+
+const P = (e, n, u) => new THREE.Vector3(e, u, -n);          // ENU -> three (y up, -z = North)
+const mats = {};
+const lineMat = (key, opts = {}) => (mats[key] = new THREE.LineBasicMaterial(Object.assign({ transparent: true }, opts)));
+
+const ground = new THREE.Group(); scene.add(ground);
+const rings = [];
+function buildGround(radius) {
+  ground.clear(); rings.length = 0;
+  const step = radius > 300 ? 100 : 50;
+  for (let r = step; r <= radius; r += step) {
+    const pts = []; for (let a = 0; a <= 128; a++) { const t = a / 128 * Math.PI * 2; pts.push(new THREE.Vector3(Math.sin(t) * r, 0, -Math.cos(t) * r)); }
+    const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat("ring" + r, { opacity: 0.9 }));
+    ground.add(l); rings.push(l);
+    const lab = label(`${r} m`, 0.7); lab.position.set(r * 0.707 + 6, 0.5, r * 0.707); ground.add(lab);
+  }
+  const ax = new THREE.BufferGeometry().setFromPoints([P(0, -radius, 0), P(0, radius, 0), P(-radius, 0, 0), P(radius, 0, 0)]);
+  ground.add(new THREE.LineSegments(ax, lineMat("axis", { opacity: 0.9 })));
+  const n = label("N", 1.2); n.position.copy(P(0, radius + 22, 0)); ground.add(n);
+  const e = label("E", 1.2); e.position.copy(P(radius + 22, 0, 0)); ground.add(e);
+  const gs = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 8), new THREE.MeshBasicMaterial()); gs.position.y = 2.5;
+  gs.userData.kind = "gs"; ground.add(gs);
+  const gsl = label("GS", 0.9); gsl.position.set(0, 14, 0); ground.add(gsl);
+  recolor();
+}
+function label(text, scale) {
+  const c = document.createElement("canvas"); c.width = 128; c.height = 64;
+  const g = c.getContext("2d"); g.font = "600 34px Archivo, Arial, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = tok("--ink2") || "#56646f"; g.fillText(text, 64, 32);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+  s.scale.set(40 * scale, 20 * scale, 1); s.userData.text = text; s.userData.scale = scale; return s;
+}
+
+const pathGeo = new THREE.BufferGeometry();
+const path = new THREE.LineSegments(pathGeo, lineMat("path", { opacity: 0.2 })); path.visible = false; scene.add(path);
+// thick trail: WebGL ignores linewidth on plain lines, so use the fat-line segments (width in screen pixels)
+const trailGeo = new THREE.LineSegmentsGeometry();
+trailGeo.setPositions(new Float32Array(TRAIL_MAX * 6)); trailGeo.setColors(new Float32Array(TRAIL_MAX * 6));
+const trailPos = trailGeo.attributes.instanceStart.data, trailCol = trailGeo.attributes.instanceColorStart.data;
+const trailMat = new THREE.LineMaterial({ vertexColors: true, linewidth: 4 });
+const trail = new THREE.LineSegments2(trailGeo, trailMat); trail.frustumCulled = false; scene.add(trail);
+const tetherGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const tether = new THREE.Line(tetherGeo, lineMat("tether", { opacity: 0.9 })); scene.add(tether);
+const kite = new THREE.Group(); scene.add(kite);
+(function buildKite() {   // leading-edge arc wing, ~ 12 m span, nose toward +z of the group
+  const g = new THREE.BufferGeometry();
+  const v = [0, 0, 5,  -7, 1.5, -2,  0, 0.6, -1,   0, 0, 5,  0, 0.6, -1,  7, 1.5, -2];
+  g.setAttribute("position", new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })); m.userData.kind = "kite"; kite.add(m);
+  const s = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 8), new THREE.MeshBasicMaterial()); s.userData.kind = "pod"; kite.add(s);
+  kite.scale.setScalar(1.6);
+})();
+const shadow = new THREE.Mesh(new THREE.CircleGeometry(4, 20), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.25 }));
+shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.2; scene.add(shadow);
+const drop = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), lineMat("drop", { opacity: 0.35 }));
+scene.add(drop);
+const windArrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), 40, 0x888888, 10, 6);
+scene.add(windArrow);
+
+const colGen = new THREE.Color(), colRec = new THREE.Color(), colNeu = new THREE.Color(), colSky = new THREE.Color();
+function recolor() {
+  const c = (n) => new THREE.Color(tok(n) || "#888");
+  colGen.copy(c("--gen")); colRec.copy(c("--rec")); colNeu.copy(c("--neutral")); colSky.copy(c("--sky"));
+  rings.forEach((r) => r.material.color.copy(c("--line")));
+  if (mats.axis) mats.axis.color.copy(c("--line"));
+  mats.path.color.copy(c("--ink2")); mats.tether.color.copy(c("--ink2")); mats.drop.color.copy(c("--ink2"));
+  shadow.material.color.copy(c("--ink2"));
+  kite.children.forEach((m) => m.material.color.copy(c(m.userData.kind === "pod" ? "--rec" : "--kite")));
+  ground.children.forEach((o) => { if (o.userData.kind === "gs") o.material.color.copy(c("--ink")); });
+  ground.children.filter((o) => o.isSprite).forEach((s) => {
+    const fresh = label(s.userData.text, s.userData.scale); s.material.map.dispose(); s.material.map = fresh.material.map; });
+  windArrow.setColor(c("--aqua"));
+}
+
+function resize() {
+  const r = $("view").getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix();
+  trailMat.resolution.set(r.width, r.height);
+}
+new ResizeObserver(resize).observe($("view"));
+
+/* ------------------------------------------------------------------ charts */
+const CHARTS = [
+  { id: "force", title: "Force on the tether", unit: "kg", series: [["force", "--gen", "load-cell sum"]] },
+  { id: "power", title: "Power", unit: "kW", zero: true, series: [["pm", "--gen", "mechanical"], ["pb", "--aqua", "battery"]] },
+  { id: "speed", title: "Line speed (+ reel-out)", unit: "m/s", zero: true, series: [["v", "--gen", "drum"]] },
+  { id: "wind", title: "Wind speed", unit: "m/s", series: [["wind", "--aqua", "anemometer"]] },
+];
+$("charts").innerHTML = CHARTS.map((c) => `<article class="chart"><header><h3>${c.title} <span class="eyebrow">[${c.unit}]</span></h3>
+  <span class="lg">${c.series.map(([k, col, n]) => `<span><i style="background:var(${col})"></i>${n}</span>`).join("")}</span>
+  <span class="val" id="v_${c.id}">—</span></header><canvas id="c_${c.id}" aria-label="${c.title} over the flight; click to jump"></canvas></article>`).join("");
+const cache = {};
+
+function rangeOf(keys) {
+  let lo = Infinity, hi = -Infinity;
+  keys.forEach((k) => F.cols[k].forEach((x) => { if (x !== null) { if (x < lo) lo = x; if (x > hi) hi = x; } }));
+  if (!isFinite(lo)) { lo = 0; hi = 1; }
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.06; return [lo - pad, hi + pad];
+}
+function setupCanvas(cv) {
+  const r = cv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.max(1, Math.round(r.width * d)); cv.height = Math.max(1, Math.round(r.height * d));
+  return { w: cv.width, h: cv.height, d };
+}
+const LEFT = 44, PADT = 6, PADB = 16;
+function drawBands(g, w, h, d, x0) {
+  const ph = F.cols.ph, n = F.n; let s = 0;
+  for (let i = 1; i <= n; i++) {
+    if (i === n || ph[i] !== ph[s]) {
+      if (ph[s]) { g.fillStyle = tok(ph[s] === 1 ? "--gen" : "--rec"); g.globalAlpha = 0.09;
+        g.fillRect(x0 + (s / (n - 1)) * (w - x0), 0, ((i - s) / (n - 1)) * (w - x0), h); g.globalAlpha = 1; }
+      s = i;
+    }
+  }
+}
+function renderChartCache(c) {
+  const cv = $("c_" + c.id), { w, h, d } = setupCanvas(cv);
+  const off = document.createElement("canvas"); off.width = w; off.height = h; const g = off.getContext("2d");
+  const x0 = LEFT * d, [lo, hi] = rangeOf(c.series.map((s) => s[0]));
+  const y = (v) => PADT * d + (1 - (v - lo) / (hi - lo)) * (h - (PADT + PADB) * d);
+  const x = (i) => x0 + (i / (F.n - 1)) * (w - x0);
+  drawBands(g, w, h - PADB * d, d, x0);
+  g.font = `${11 * d}px "IBM Plex Mono", monospace`; g.fillStyle = tok("--ink2"); g.textAlign = "right"; g.textBaseline = "middle";
+  const ticks = niceTicks(lo, hi, 4);
+  ticks.forEach((t) => { g.strokeStyle = tok("--line"); g.lineWidth = 1; g.beginPath(); g.moveTo(x0, y(t)); g.lineTo(w, y(t)); g.stroke();
+    g.fillText(String(+t.toFixed(2)), x0 - 6 * d, y(t)); });
+  if (c.zero && lo < 0 && hi > 0) { g.strokeStyle = tok("--ink2"); g.globalAlpha = 0.6; g.beginPath(); g.moveTo(x0, y(0)); g.lineTo(w, y(0)); g.stroke(); g.globalAlpha = 1; }
+  g.textAlign = "center"; g.textBaseline = "top";
+  const dur = (F.n - 1) / F.rate, tstep = niceStep(dur / 6);
+  for (let t = 0; t <= dur; t += tstep) g.fillText(mmss(t), x(t * F.rate), h - (PADB - 3) * d);
+  c.series.forEach(([k, col]) => {
+    const a = F.cols[k]; g.strokeStyle = tok(col); g.lineWidth = 1.3 * d; g.beginPath(); let pen = false;
+    for (let i = 0; i < F.n; i++) { const v = a[i]; if (v === null) { pen = false; continue; }
+      if (!pen) { g.moveTo(x(i), y(v)); pen = true; } else g.lineTo(x(i), y(v)); }
+    g.stroke();
+  });
+  cache[c.id] = { off, x, y, w, h, d };
+}
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p; }
+function niceTicks(lo, hi, n) { const s = niceStep((hi - lo) / n), out = []; for (let t = Math.ceil(lo / s) * s; t <= hi; t += s) out.push(t); return out; }
+
+function drawCharts(i) {
+  CHARTS.forEach((c) => {
+    const k = cache[c.id]; if (!k) return; const g = $("c_" + c.id).getContext("2d");
+    g.clearRect(0, 0, k.w, k.h); g.drawImage(k.off, 0, 0);
+    const xx = k.x(i); g.strokeStyle = tok("--ink"); g.lineWidth = 1.2 * k.d; g.beginPath(); g.moveTo(xx, 0); g.lineTo(xx, k.h - PADB * k.d); g.stroke();
+    c.series.forEach(([key, col]) => { const v = F.cols[key][i]; if (v === null) return;
+      g.fillStyle = tok(col); g.strokeStyle = tok("--panel"); g.lineWidth = 2 * k.d; g.beginPath(); g.arc(xx, k.y(v), 4 * k.d, 0, 7); g.fill(); g.stroke(); });
+    $("v_" + c.id).textContent = c.series.map(([key]) => fmt(F.cols[key][i], 1)).join(" / ") + " " + c.unit;
+  });
+}
+
+/* ------------------------------------------------------------------ timeline */
+let tl = null;
+function renderTimeline() {
+  const cv = $("timeline"), { w, h, d } = setupCanvas(cv);
+  const off = document.createElement("canvas"); off.width = w; off.height = h; const g = off.getContext("2d");
+  g.fillStyle = tok("--sky"); g.fillRect(0, 0, w, h);
+  const ph = F.cols.ph, cy = F.cols.cy; let s = 0;
+  for (let i = 1; i <= F.n; i++) if (i === F.n || ph[i] !== ph[s]) {
+    if (ph[s]) { g.fillStyle = tok(ph[s] === 1 ? "--gen" : "--rec"); g.globalAlpha = 0.75; g.fillRect(s / (F.n - 1) * w, 14 * d, (i - s) / (F.n - 1) * w, h - 22 * d); g.globalAlpha = 1; }
+    s = i;
+  }
+  g.font = `600 ${10 * d}px "IBM Plex Mono", monospace`; g.fillStyle = tok("--ink2"); g.textBaseline = "top";
+  let prev = 0; for (let i = 0; i < F.n; i++) if (cy[i] && cy[i] !== prev) { g.fillText("C" + cy[i], i / (F.n - 1) * w + 2 * d, 1 * d); prev = cy[i]; }
+  tl = { off, w, h, d };
+}
+function drawTimeline(i) {
+  if (!tl) return; const g = $("timeline").getContext("2d");
+  g.clearRect(0, 0, tl.w, tl.h); g.drawImage(tl.off, 0, 0);
+  const x = i / (F.n - 1) * tl.w; g.fillStyle = tok("--ink"); g.fillRect(x - 1.5 * tl.d, 10 * tl.d, 3 * tl.d, tl.h - 14 * tl.d);
+}
+function seekFromEvent(cv, e, x0px) {
+  const r = cv.getBoundingClientRect(), x0 = x0px || 0;
+  const f = Math.min(1, Math.max(0, (e.clientX - r.left - x0) / (r.width - x0)));
+  idx = f * (F.n - 1); lastDrawn = -1;
+}
+function dragSeek(cv, x0) {
+  let down = false;
+  cv.addEventListener("pointerdown", (e) => { down = true; cv.setPointerCapture(e.pointerId); seekFromEvent(cv, e, x0); });
+  cv.addEventListener("pointermove", (e) => { if (down) seekFromEvent(cv, e, x0); });
+  cv.addEventListener("pointerup", () => { down = false; });
+}
+dragSeek($("timeline"), 0);
+CHARTS.forEach((c) => dragSeek($("c_" + c.id), LEFT));
+$("timeline").addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") { idx = Math.min(F.n - 1, idx + 10 * F.rate); lastDrawn = -1; e.preventDefault(); }
+  if (e.key === "ArrowLeft") { idx = Math.max(0, idx - 10 * F.rate); lastDrawn = -1; e.preventDefault(); }
+});
+
+/* ------------------------------------------------------------------ transport */
+function setPlaying(p) { playing = p; $("play").textContent = p ? "Pause" : "Play"; $("play").setAttribute("aria-pressed", String(p)); lastTs = null; }
+$("play").addEventListener("click", () => { if (idx >= F.n - 1) idx = 0; setPlaying(!playing); });
+$("speed").addEventListener("change", (e) => { speed = +e.target.value; });
+function jumpCycle(dir) {
+  const cy = F.cols.cy, i0 = Math.floor(idx), cur = cy[i0] || 0;
+  if (dir > 0) { for (let i = i0 + 1; i < F.n; i++) if (cy[i] && cy[i] !== cur) { idx = i; break; } }
+  else { const target = cur > 1 ? cur - 1 : 1; for (let i = 0; i < F.n; i++) if (cy[i] === target) { idx = i; break; } }
+  lastDrawn = -1;
+}
+$("prevC").addEventListener("click", () => jumpCycle(-1));
+$("nextC").addEventListener("click", () => jumpCycle(1));
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "SELECT" || e.target.tagName === "BUTTON") return;
+  if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
+});
+
+/* ------------------------------------------------------------------ per-frame update */
+const LINKTXT = [["main radio", "ok"], ["backup radio", "warn"], ["not available", "bad"]];
+const RTKTXT = { 0: ["fixed", "ok"], 1: ["float", "warn"], 2: ["no RTK", "bad"], 3: ["no GPS", "bad"] };
+function posAt(i) { const c = F.cols; return c.E[i] === null ? null : P(c.E[i], c.N[i], c.U[i]); }
+function update(i) {
+  const c = F.cols;
+  const t = new Date(F.start_ms + i / F.rate * 1000);
+  $("clock").innerHTML = `${t.toISOString().slice(11, 19)}<small>Rome</small>`;
+  const ph = c.ph[i]; $("phase").dataset.ph = ph; $("phase").textContent = ph === 1 ? "Generation · reel-out" : ph === 2 ? "Recovery · reel-in" : "Between cycles";
+  $("elapsed").textContent = `${mmss(i / F.rate)} / ${mmss((F.n - 1) / F.rate)}`;
+  $("r_force").textContent = fmt(c.force[i], 0, "kg"); $("r_v").textContent = fmt(c.v[i], 2, "m/s");
+  $("r_wl").textContent = fmt(c.wl[i], 0, "m"); $("r_pb").textContent = fmt(c.pb[i], 2, "kW");
+  $("r_eb").textContent = fmt(c.eb[i], 1, "Wh"); $("r_pm").textContent = fmt(c.pm[i], 2, "kW");
+  $("r_cy").textContent = c.cy[i] ? `${c.cy[i]} of ${F.summary.cycles}` : "—";
+  $("r_ks").textContent = fmt(c.ks[i], 1, "m/s");
+  const p = posAt(i);
+  $("r_pos").textContent = p ? `${fmt(c.U[i], 0)} m / ${fmt(Math.hypot(c.E[i], c.N[i], c.U[i]), 0)} m` : "—";
+  $("r_dp").textContent = `${fmt(c.cp[i], 0)} / ${fmt(c.mp[i], 0)} %`;
+  $("r_st").textContent = `${fmt(c.cr[i], 0)} / ${fmt(c.mr[i], 0)} %`;
+  $("r_tq").textContent = `${fmt(c.tl[i], 1)} / ${fmt(c.tr[i], 1)} N·m`;
+  $("r_podw").textContent = fmt(c.podw[i], 0, "W");
+  $("r_wind").textContent = c.wind[i] === null ? "—" : `${fmt(c.wind[i], 1, "m/s")} from ${fmt(c.wdir[i], 0)}°`;
+  const L = LINKTXT[c.link[i]] || LINKTXT[2]; $("r_link").textContent = L[0]; $("r_link").dataset.s = L[1];
+  const R = RTKTXT[c.rtk[i]]; $("r_rtk").textContent = R ? R[0] : "no IPOK"; $("r_rtk").dataset.s = R ? R[1] : "";
+  // 3D
+  const vis = !!p; kite.visible = tether.visible = shadow.visible = drop.visible = vis;
+  if (p) {
+    kite.position.copy(p);
+    const a = posAt(Math.max(0, i - 2)) || p, b = posAt(Math.min(F.n - 1, i + 2)) || p;
+    const fwd = b.clone().sub(a); if (fwd.lengthSq() < 1e-4) fwd.set(1, 0, 0);
+    kite.up.copy(p.clone().normalize()); kite.lookAt(p.clone().add(fwd));
+    tetherGeo.attributes.position.setXYZ(1, p.x, p.y, p.z); tetherGeo.attributes.position.needsUpdate = true;
+    shadow.position.set(p.x, 0.2, p.z);
+    drop.geometry.attributes.position.setXYZ(0, p.x, 0, p.z); drop.geometry.attributes.position.setXYZ(1, p.x, p.y, p.z);
+    drop.geometry.attributes.position.needsUpdate = true;
+  }
+  const pos = trailPos.array, col = trailCol.array; let k = 0;
+  for (let j = Math.max(1, i - trailLen + 1); j <= i; j++) {
+    const a = posAt(j - 1), b = posAt(j); if (!a || !b) continue;
+    const pw = c.pb[j], f = pw === null ? 0 : Math.min(1, Math.abs(pw) / pmax);
+    const cc = colNeu.clone().lerp(pw >= 0 ? colGen : colRec, 0.35 + 0.65 * f);
+    const ca = colSky.clone().lerp(cc, Math.pow((j - 1 - (i - trailLen)) / trailLen, 1.5)),   // oldest end = sky colour
+          cb = colSky.clone().lerp(cc, Math.pow((j - (i - trailLen)) / trailLen, 1.5));
+    pos.set([a.x, a.y, a.z, b.x, b.y, b.z], k * 6); col.set([ca.r, ca.g, ca.b, cb.r, cb.g, cb.b], k * 6); k++;
+  }
+  trailGeo.instanceCount = k; trailPos.needsUpdate = true; trailCol.needsUpdate = true;
+  if (c.wdir[i] !== null) { const th = (c.wdir[i] + 180) * Math.PI / 180;
+    windArrow.setDirection(new THREE.Vector3(Math.sin(th), 0, -Math.cos(th)));
+    windArrow.setLength(Math.max(12, (c.wind[i] || 0) * 8), 10, 6);
+    windArrow.position.copy(P(-Math.sin(th) * 60, -Math.cos(th) * 60, 1)); }
+  drawCharts(i); drawTimeline(i);
+}
+
+function loop(ts) {
+  if (F) {
+    if (playing && lastTs !== null) {
+      idx += (ts - lastTs) / 1000 * F.rate * speed;
+      if (idx >= F.n - 1) { idx = F.n - 1; setPlaying(false); }
+    }
+    lastTs = playing ? ts : null;
+    const i = Math.floor(idx);
+    if (i !== lastDrawn) { update(i); lastDrawn = i; }
+    controls.update(); renderer.render(scene, camera);
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ------------------------------------------------------------------ load a flight */
+function loadFlight(n) {
+  F = DATA.flights[n]; setPlaying(false); summary(F);
+  $("flightSel").value = String(n);
+  $("nopos").hidden = F.has_pos; $("key3d").hidden = !F.has_pos;
+  const c = F.cols, pts = []; let rmax = 60, cx = 0, cz = 0, cy = 0, m = 0;
+  for (let i = 1; i < F.n; i++) { const a = posAt(i - 1), b = posAt(i); if (a && b) pts.push(a, b);
+    if (b) { rmax = Math.max(rmax, Math.hypot(b.x, b.z)); cx += b.x; cy += b.y; cz += b.z; m++; } }
+  pathGeo.setFromPoints(pts);
+  pmax = Math.max(0.5, ...c.pb.filter((v) => v !== null).map(Math.abs).sort((a, b) => a - b).slice(-Math.ceil(F.n * 0.02), -Math.ceil(F.n * 0.02) + 1));
+  buildGround(Math.ceil(rmax / 50) * 50 + 50);
+  if (m) { controls.target.set(cx / m * 0.5, cy / m * 0.6, cz / m * 0.5); }
+  else controls.target.set(0, 20, 0);
+  const dist = rmax * 1.9 + 80;
+  camera.position.set(controls.target.x - dist * 0.55, Math.max(60, rmax * 0.55), controls.target.z + dist * 0.75);
+  resize();
+  CHARTS.forEach(renderChartCache); renderTimeline();
+  // start in flight: the first generation phase, so the first frame shows the kite flying
+  const g = c.ph.indexOf(1); idx = g > 0 ? g + Math.round(20 * F.rate) : Math.floor(F.n * 0.25);
+  idx = Math.min(idx, F.n - 1); lastDrawn = -1;
+}
+
+function rerenderTheme() { recolor(); if (F) { CHARTS.forEach(renderChartCache); renderTimeline(); lastDrawn = -1; } }
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerenderTheme);
+new MutationObserver(rerenderTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+let rt; new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(() => { if (F) { CHARTS.forEach(renderChartCache); renderTimeline(); lastDrawn = -1; } }, 120); }).observe($("charts"));
+
+const start = Math.max(0, DATA.flights.findIndex((f) => f.stem.endsWith("20261024_S4E1")));
+loadFlight(start);
+requestAnimationFrame(loop);
+</script>

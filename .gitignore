@@ -67,4 +67,14 @@ logs/
 flight_analysis_*/
 *.txt
 *.png
+*.html
+!replay_template.html
+VELOCITY_Vaie
 
+
+
+# Exported InfluxDB archives (export_influx_day.py)
+data_archive/
+
+# Processed flight-test datasets (large; kept outside git)
+processed/
