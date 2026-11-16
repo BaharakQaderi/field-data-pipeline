@@ -4,6 +4,9 @@ import os
 import numpy as np
 from datetime import datetime
 
+#TODO: , I need to first segment the whole data based on the new flight interpolation
+# change the pass of the right data, per flight maybe, ask Andera about the processed, 5th line /2 I think
+
 # Flight time ranges for July 17, 2025
 flights = [
     ("10:15:08", "10:23:42"),
@@ -23,7 +26,7 @@ flights = [
     ("13:39:23", "13:46:50")
 ]
 
-# Load the data
+# Load the data#TODO: change the pass of the right data, per flight maybe, ask Andera about the processed, 5th line /2 I think
 df = pd.read_csv('/Users/baharakqaderi/field-data-pipeline/outputs/processed_merged_flight_data_2025-07-17.csv')
 ground_df = pd.read_csv('/Users/baharakqaderi/field-data-pipeline/data/INFLUX/GROUND_SEGMENT_data_2025-07-17.csv')
 
@@ -54,7 +57,7 @@ def calculate_metrics(flight_data):
     flight_data['torque_abs_left'] = abs(flight_data['FLIGHT_SEGMENT_l_torque'].fillna(0))
     flight_data['torque_abs_right'] = abs(flight_data['FLIGHT_SEGMENT_r_torque'].fillna(0))
     flight_data['torque_diff'] = abs(flight_data['FLIGHT_SEGMENT_l_torque'].fillna(0) - flight_data['FLIGHT_SEGMENT_r_torque'].fillna(0))
-    
+    #TODO: I should add the avg of the total force as well
     metrics = {
         'Max total force': flight_data['total_force'].max(),
         'Average back force (mean(mean left,mean right))': (flight_data['Backline_Left_kg'].mean() + flight_data['Backline_Right_kg'].mean()) / 2,

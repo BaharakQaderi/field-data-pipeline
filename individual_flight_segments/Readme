@@ -1,0 +1,13 @@
+
+The force component data has been imported from the local values recorded on the Raspberry Pi.
+In the Influx data, we only had the total forces available. To enrich this, I aligned the data from the two different sources and applied linear interpolation where values were missing.
+
+Due to the load cell setup during the testing days, the raw value of the 5th line was divided by two. Using this adjustment, I recalculated the total force, saved as gs_total_forces.
+
+As a result, the gs_forces (Backline, Frontline, 5th line, and Total) are now imported and recalculated.
+
+Additionally, I added a new column, calculated_total_forces, which is computed as:
+
+calculated_total_forces = FLIGHT_SEGMENT_loadcells_force - gs_5th_line_kg
+
+FLIGHT_SEGMENT_loadcells_force is the actual recorded value and should be considered the reliable reference.

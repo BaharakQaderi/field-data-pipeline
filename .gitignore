@@ -78,3 +78,11 @@ data_archive/
 
 # Processed flight-test datasets (large; kept outside git)
 processed/
+
+# Flight data and data-derived files (kept outside git)
+data_archive_primary/
+flight_timeseries/
+*.parquet
+*.mat
+*.xlsx
+*.zip
